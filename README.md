@@ -1,6 +1,6 @@
 # client-api-test-service-nodejs
 Azure AD Verifiable Credentials node.js sample that uses the new private preview VC Client APIs.
-This sample is updated to work with version v0.3 which introduces authorization and the use of an access token when calling the API. Please read the section on [Adding Authorization](https://github.com/cljung/client-api-test-service-nodejs/blob/main/README.md#adding-authorization) to see what additions you need to do.
+This sample is updated to work with version v0.3 which introduces authorization and the use of an access token when calling the API. Please read the section on [Adding Authorization](https://github.com/cljung/client-api-test-service-nodejs/#adding-authorization) to see what additions you need to do.
 
 ## Two modes of operations
 This sample can work in two ways:
