@@ -17,6 +17,17 @@ var secureRandom = require('secure-random');
 const https = require('https')
 const url = require('url')
 const { Console } = require('console');
+var msal = require('@azure/msal-node');
+
+//////////// didconfig file can come from command line, env var or the default
+var didConfigFile = process.argv.slice(2)[1];
+if ( !didConfigFile ) {
+  didConfigFile = process.env.DIDCONFIG || './didconfig.json';
+}
+const config = require( didConfigFile )
+if (!config.azTenantId) {
+  throw new Error('The didconfig.json file is missing.')
+}
 
 //////////// Setup the presentation request payload template
 var requestConfigFile = process.argv.slice(2)[0];
@@ -28,6 +39,28 @@ presentationRequestConfig.registration.clientName = "Node.js SDK API Verifier";
 
 var didContract = null;
 
+//////////// MSAL
+const msalConfig = {
+  auth: {
+      clientId: config.azClientId,
+      authority: `https://login.microsoftonline.com/${config.azTenantId}`,
+      clientSecret: config.azClientSecret,
+  },
+  system: {
+      loggerOptions: {
+          loggerCallback(loglevel, message, containsPii) {
+              console.log(message);
+          },
+          piiLoggingEnabled: false,
+          logLevel: msal.LogLevel.Verbose,
+      }
+  }
+};
+const cca = new msal.ConfidentialClientApplication(msalConfig);
+const msalClientCredentialRequest = {
+  scopes: ["bbb94529-53a3-4be5-a069-7eaf2712b826/.default"],
+  skipCache: false, 
+};
 //////////// Main Express server function
 // Note: You'll want to update port values for your setup.
 const app = express()
@@ -117,6 +150,15 @@ app.get('/presentation-request', async (req, res) => {
     }
   });
 
+  // get the Access Token
+  var accessToken = "";
+  const result = await cca.acquireTokenByClientCredential(msalClientCredentialRequest);
+  if ( result ) {
+    accessToken = result.accessToken;
+  }
+  console.log( `accessToken: ${accessToken}` );
+
+  // call the VC Client API
   presentationRequestConfig.callback.url = `https://${req.hostname}/presentation-request-api-callback`;
   presentationRequestConfig.callback.state = req.session.id;
 
@@ -129,11 +171,12 @@ app.get('/presentation-request', async (req, res) => {
     body: payload,
     headers: {
       'Content-Type': 'application/json',
-      'Content-Length': payload.length.toString()
+      'Content-Length': payload.length.toString(),
+      'Authorization': `Bearer ${accessToken}`
     }
   };
 
-  var client_api_request_endpoint = 'https://dev.did.msidentity.com/v1.0/abc/verifiablecredentials/request';
+  var client_api_request_endpoint = `https://beta.did.msidentity.com/v1.0/${config.azTenantId}/verifiablecredentials/request`;
   const response = await fetch(client_api_request_endpoint, fetchOptions);
   var apiResp = await response.json()
 
@@ -243,7 +286,7 @@ app.post('/presentation-response-b2c', parserJson, async (req, res) => {
         'surName': claims.lastName,
         'iss': jwtVC.iss,    // who issued this VC?
         'sub': jwtVC.sub,    // who are you?
-        'key': jwtVC.sub.replace("did:ion:", "did.ion.").split(":")[0].replace("did.ion.", "did:ion:"),
+        'key': jwtVC.sub.replace("did:ion:", "did.ion.").split(":")[0], //.replace("did.ion.", "did:ion:"),
         'oid': oid,
         'tid': tid,
         'username': username

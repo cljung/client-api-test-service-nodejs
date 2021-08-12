@@ -13,6 +13,17 @@ var fetch = require( 'node-fetch' );
 const https = require('https')
 const url = require('url')
 const { SSL_OP_COOKIE_EXCHANGE } = require('constants');
+var msal = require('@azure/msal-node');
+
+//////////// didconfig file can come from command line, env var or the default
+var didConfigFile = process.argv.slice(2)[1];
+if ( !didConfigFile ) {
+  didConfigFile = process.env.DIDCONFIG || './didconfig.json';
+}
+const config = require( didConfigFile )
+if (!config.azTenantId) {
+  throw new Error('The didconfig.json file is missing.')
+}
 
 //////////// Setup the issuance request payload template
 var requestConfigFile = process.argv.slice(2)[0];
@@ -26,6 +37,29 @@ issuanceRequestConfig.registration.clientName = "Node.js SDK API Issuer";
 if ( issuanceRequestConfig.issuance.pin && issuanceRequestConfig.issuance.pin.length == 0 ) {
   issuanceRequestConfig.issuance.pin = null;
 }
+
+//////////// MSAL
+const msalConfig = {
+  auth: {
+      clientId: config.azClientId,
+      authority: `https://login.microsoftonline.com/${config.azTenantId}`,
+      clientSecret: config.azClientSecret,
+  },
+  system: {
+      loggerOptions: {
+          loggerCallback(loglevel, message, containsPii) {
+              console.log(message);
+          },
+          piiLoggingEnabled: false,
+          logLevel: msal.LogLevel.Verbose,
+      }
+  }
+};
+const cca = new msal.ConfidentialClientApplication(msalConfig);
+const msalClientCredentialRequest = {
+  scopes: ["bbb94529-53a3-4be5-a069-7eaf2712b826/.default"],
+  skipCache: false, 
+};
 
 //////////// Main Express server function
 // Note: You'll want to update port values for your setup.
@@ -114,6 +148,15 @@ app.get('/issue-request-api', async (req, res) => {
     }
   });
 
+  // get the Access Token
+  var accessToken = "";
+  const result = await cca.acquireTokenByClientCredential(msalClientCredentialRequest);
+  if ( result ) {
+    accessToken = result.accessToken;
+  }
+  console.log( `accessToken: ${accessToken}` );
+
+  // call the VC Client API  
   issuanceRequestConfig.callback.url = `https://${req.hostname}/issue-request-api-callback`;
   issuanceRequestConfig.callback.state = req.session.id;
   if ( issuanceRequestConfig.issuance.pin ) {
@@ -134,11 +177,12 @@ app.get('/issue-request-api', async (req, res) => {
     body: payload,
     headers: {
       'Content-Type': 'application/json',
-      'Content-Length': payload.length.toString()
+      'Content-Length': payload.length.toString(),
+      'Authorization': `Bearer ${accessToken}`
     }
   };
 
-  var client_api_request_endpoint = 'https://dev.did.msidentity.com/v1.0/abc/verifiablecredentials/request';
+  var client_api_request_endpoint = `https://beta.did.msidentity.com/v1.0/${config.azTenantId}/verifiablecredentials/request`;
   const response = await fetch(client_api_request_endpoint, fetchOptions);
   var apiResp = await response.json()
 
