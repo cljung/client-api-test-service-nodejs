@@ -79,16 +79,21 @@
                         if (response.length > 0) {
                             //console.log(response)
                             respIssuanceReq = JSON.parse(response);
-                            qrcode.makeCode(respIssuanceReq.url);                            
-                            document.getElementById('sign-in').style.display = "none";
-                            document.getElementById('qrText').style.display = "block";
-                            document.getElementById('qrcodeFrame').style.display = "block";
-                            if (respIssuanceReq.pin) {
-                                document.getElementById('pinCodeText').innerHTML = "Pin code: " + respIssuanceReq.pin;
-                                document.getElementById('pinCodeText').style.display = "block";
-                            }
-                            document.getElementById('selfAssertedClaims').style.display = "none";
-                            
+                            if ( respIssuanceReq.error ) {
+                                document.getElementById('message-wrapper').style.display = "block";
+                                document.getElementById("message").innerHTML = respIssuanceReq.error;
+                                respIssuanceReq = null;
+                            } else {
+                                qrcode.makeCode(respIssuanceReq.url);                            
+                                document.getElementById('sign-in').style.display = "none";
+                                document.getElementById('qrText').style.display = "block";
+                                document.getElementById('qrcodeFrame').style.display = "block";
+                                if (respIssuanceReq.pin) {
+                                    document.getElementById('pinCodeText').innerHTML = "Pin code: " + respIssuanceReq.pin;
+                                    document.getElementById('pinCodeText').style.display = "block";
+                                }
+                                document.getElementById('selfAssertedClaims').style.display = "none";
+                            }                            
                         }
                     })
 

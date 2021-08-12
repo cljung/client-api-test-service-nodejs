@@ -152,9 +152,16 @@ app.get('/presentation-request', async (req, res) => {
 
   // get the Access Token
   var accessToken = "";
-  const result = await cca.acquireTokenByClientCredential(msalClientCredentialRequest);
-  if ( result ) {
-    accessToken = result.accessToken;
+  try {
+    const result = await cca.acquireTokenByClientCredential(msalClientCredentialRequest);
+    if ( result ) {
+      accessToken = result.accessToken;
+    }
+  } catch {
+      res.status(401).json({
+        'error': 'Could not acquire credentials to access your Azure Key Vault'
+        });  
+      return; 
   }
   console.log( `accessToken: ${accessToken}` );
 
